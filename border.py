@@ -125,31 +125,78 @@ def draw_border(img: Image, border: Border) -> Image:
 
 def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], boldfont: tuple[str, int]) -> Image:
     centered = border.border_type in (BorderType.POLAROID, BorderType.LARGE, BorderType.INSTAGRAM)
-    multiplier = 0.2 if centered else 0.5
-    font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
-    heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.02), boldfont[0], index=boldfont[1])
-    font = tm.create_font(font_size, fontpath=font[0], index=font[1])
-    heading_font = tm.create_font(heading_font_size, fontpath=boldfont[0], index=boldfont[1])
-
-    # Vertical align text in bottom border based on total font block height.
+    
     if centered:
-         # 3 Lines of text. 1 heading, two normal. Minus heading margins. A bit sketchy but it aligns fine.
-        total_font_height = heading_font.size + (2 * font.size) - (heading_font.size / 2)
+        # For polaroid, large, and instagram: 3 lines of text, centered, stacked vertically
+        # Increased multiplier from 0.2 to 0.28 for larger, more readable text
+        multiplier = 0.28
+        font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
+        heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.04), boldfont[0], index=boldfont[1])
+        font_obj = tm.create_font(font_size, fontpath=font[0], index=font[1])
+        heading_font = tm.create_font(heading_font_size, fontpath=boldfont[0], index=boldfont[1])
+
+        # 3 Lines of text. 1 heading, two normal. Minus heading margins. A bit sketchy but it aligns fine.
+        total_font_height = heading_font.size + (2 * font_obj.size) - (heading_font.size / 2)
         y = img.height - border.bottom + \
             (border.bottom / 2) - (total_font_height / 2)
+        x = border.left
+
+        text = f"{exif['Make']} {exif['Model']}"
+        text_img, (x, y) = tm.draw_text_on_image(img, text, (x,y), centered, heading_font, fill=(100, 100, 100))
+
+        text = f"{exif['LensMake']} {exif['LensModel']}"
+        text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font_obj, fill=(128, 128, 128))
+
+        text = f"{exif['FocalLength']}  {exif['FNumber']}  {exif['ISOSpeedRatings']}  {exif['ExposureTime']}"
+        text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font_obj, fill=(128, 128, 128))
     else:
-        # y = img.height - (border.bottom / 2) - (heading_font.size / 3)
-        y = img.height - (border.bottom / 2) + (heading_font.size / 3)
-
-    x = border.left
-
-    text = f"{exif['Make']} {exif['Model']}"
-    text_img, (x, y) = tm.draw_text_on_image(img, text, (x,y), centered, heading_font, fill=(100, 100, 100))
-
-    text = f"{exif['LensMake']} {exif['LensModel']}"
-    text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font, fill=(128, 128, 128))
-
-    text = f"{exif['FocalLength']}  {exif['FNumber']}  {exif['ISOSpeedRatings']}  {exif['ExposureTime']}"
-    text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font, fill=(128, 128, 128))
+        # For small and medium: Single line of text at bottom, centered horizontally
+        # Increased multiplier from 0.2 to 0.32 for larger, more readable single-line text
+        # (0.4 was too large and caused text cutoff on small borders)
+        multiplier = 0.32
+        font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
+        heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.04), boldfont[0], index=boldfont[1])
+        font_obj = tm.create_font(font_size, fontpath=font[0], index=font[1])
+        heading_font = tm.create_font(heading_font_size, fontpath=boldfont[0], index=boldfont[1])
+        
+        # Build the single line with mixed fonts: we'll draw bold camera, then regular rest
+        camera_text = f"{exif['Make']} {exif['Model']}"
+        lens_text = f"{exif['LensMake']} {exif['LensModel']}"
+        settings_text = f"{exif['FocalLength']}  {exif['FNumber']}  {exif['ISOSpeedRatings']}  {exif['ExposureTime']}"
+        
+        # Calculate total width for centering (using heading font for camera, regular for rest)
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(img)
+        camera_width = draw.textlength(camera_text, font=heading_font)
+        separator_width = draw.textlength(" · ", font=font_obj)
+        lens_width = draw.textlength(lens_text, font=font_obj)
+        settings_width = draw.textlength(settings_text, font=font_obj)
+        total_width = camera_width + separator_width + lens_width + separator_width + settings_width
+        
+        # Center the text block horizontally
+        x = (img.width - total_width) / 2
+        
+        # Center vertically in bottom border using actual text bounding box for precise centering
+        # Get the bounding box of the heading font (tallest text in the line)
+        bbox = heading_font.getbbox(camera_text)
+        text_height = bbox[3] - bbox[1]  # bottom - top gives actual rendered height
+        # Position Y so the text is perfectly centered in the bottom border
+        # Note: anchor is "ls" (left-baseline), so we need to account for the baseline position
+        y = img.height - border.bottom + (border.bottom / 2) - (text_height / 2) + bbox[3]
+        
+        # Draw camera (bold)
+        text_img, (x, _) = tm.draw_text_on_image(img, camera_text, (x, y), centered=False, font=heading_font, fill=(100, 100, 100))
+        
+        # Draw first separator
+        text_img, (x, _) = tm.draw_text_on_image(text_img, " · ", (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
+        
+        # Draw lens
+        text_img, (x, _) = tm.draw_text_on_image(text_img, lens_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
+        
+        # Draw second separator
+        text_img, (x, _) = tm.draw_text_on_image(text_img, " · ", (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
+        
+        # Draw settings
+        text_img, (x, _) = tm.draw_text_on_image(text_img, settings_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
 
     return text_img

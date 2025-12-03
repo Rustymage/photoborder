@@ -7,7 +7,7 @@
 import os
 import argparse
 import logging
-from PIL import Image
+from PIL import Image, ImageOps
 from exif import get_exif
 from filemanager import should_include_file, get_directory_files
 from palette import load_image_color_palette, overlay_palette
@@ -76,12 +76,18 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
 
     exif = None
     img = Image.open(path)
+    
+    # Extract EXIF data before transposing (transpose creates a new image without _getexif method)
+    if add_exif:
+        exif = get_exif(img)
+    
+    # Apply EXIF orientation to ensure portrait images are correctly oriented
+    img = ImageOps.exif_transpose(img)
     border = create_border(img.width, img.height, border_type)
     img_with_border = draw_border(img, border)
     save_as = f'{filename}_border-{border.border_type}'
 
     if add_exif:
-        exif = get_exif(img)
         if exif:
             moduledir = os.path.dirname(os.path.abspath(__file__))
             fontdir = os.path.join(moduledir, "fonts")
