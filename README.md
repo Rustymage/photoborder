@@ -49,9 +49,57 @@ Made for fun and to solve a little problem.
 
 > Note: This is a hacked together little script. Use at your own peril...
 
-## osx_services
+## macOS Quick Actions
 
-Adds quick actions to you OSX menu for quick deployment of tool.
+Quick Actions allow you to add borders to images directly from Finder's right-click menu.
+
+### Installation
+
+1. Ensure Python dependencies are installed:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Run the installation script:
+   ```bash
+   ./install_quick_actions.sh
+   ```
+
+3. The script will copy all Quick Action workflows to `~/Library/Services/`
+
+### Available Quick Actions
+
+**With EXIF Data:**
+- Add Exif Border instagram
+- Add Exif Border small
+- Add Exif Border medium
+- Add Exif Border large
+- Add Exif Border polaroid
+
+**Without EXIF Data:**
+- Add White Border instagram
+- Add White Border small
+- Add White Border medium
+- Add White Border large
+- Add White Border polaroid
+
+### Usage
+
+1. Right-click on any image file (jpg, jpeg, png) in Finder
+2. Navigate to **Quick Actions** in the context menu
+3. Select your desired border option
+4. The processed image will be saved in the same directory with `_border` suffix
+
+### Compatibility
+
+These Quick Actions are compatible with:
+- macOS Sequoia (15.x) and newer
+- macOS Sonoma (14.x)
+- macOS Ventura (13.x)
+- macOS Monterey (12.x)
+- Works with both Intel and Apple Silicon Macs
+
+The workflows automatically detect your Python installation (pyenv or system python3).
 
 ## Fonts
 
