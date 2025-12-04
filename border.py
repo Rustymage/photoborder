@@ -159,12 +159,13 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
             str(exif['ExposureTime'])
         ]
         
-        # Add film simulation if available
+        # Join settings with dots
+        text = " · ".join(settings_parts)
+        
+        # Add film simulation if available (with pipe separator)
         film_sim = str(exif.get('FilmSimulation', ''))
         if film_sim:
-            settings_parts.append(f"| {film_sim}")
-        
-        text = "  ".join(settings_parts)
+            text = f"{text}  | {film_sim}"
         text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font_obj, fill=(128, 128, 128))
     else:
         # For small and medium: Single line of text at bottom, centered horizontally
@@ -188,11 +189,13 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
             str(exif['ExposureTime'])
         ]
         
+        # Join settings with dots
+        settings_text = " · ".join(settings_parts)
+        
+        # Add film simulation if available (with pipe separator)
         film_sim = str(exif.get('FilmSimulation', ''))
         if film_sim:
-            settings_parts.append(f"| {film_sim}")
-        
-        settings_text = "  ".join(settings_parts)
+            settings_text = f"{settings_text}  | {film_sim}"
         
         # Calculate total width for centering (using heading font for camera, regular for rest)
         from PIL import ImageDraw
