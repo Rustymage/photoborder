@@ -61,17 +61,7 @@
 					<key>COMMAND_STRING</key>
 					<string>for f in "$@"; do
     cd "$(dirname "$f")"
-    
-    # Try to find python (pyenv first, then system python3)
-    if [ -f ~/.pyenv/shims/python ]; then
-        PYTHON=~/.pyenv/shims/python
-    elif command -v python3 2>/dev/null; then
-        PYTHON=python3
-    else
-        PYTHON=python
-    fi
-    
-    "$PYTHON" /Users/eric/Developer/photoborder/main.py  "$f"
+    ~/.pyenv/shims/python ~/dev/whiteborder/main.py $f
 done
 </string>
 					<key>CheckedForUserDefaultShell</key>
