@@ -1,10 +1,14 @@
 """
 Photo Exif extraction functions
 """
+import subprocess
+import logging
 from dataclasses import dataclass
 from fractions import Fraction
 from PIL import Image
 from PIL.ExifTags import TAGS
+
+logger = logging.getLogger(__name__)
 
 def format_shutter_speed(shutter_speed: str) -> str:
     """
@@ -67,11 +71,44 @@ class ExifItem:
         return fmt_data
 
 
-def get_exif(img: Image) -> dict:
+def get_film_simulation(image_path: str) -> str:
+    """
+    Extract Fuji film simulation mode from image using exiftool.
+    
+    Args:
+        image_path (str): Path to the image file
+        
+    Returns:
+        str: Film simulation name (e.g., "Reala ACE", "Nostalgic Neg") or empty string
+    """
+    try:
+        result = subprocess.run(
+            ['exiftool', '-FilmMode', '-s', '-s', '-s', image_path],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        film_mode = result.stdout.strip()
+        return film_mode if film_mode else ''
+    except FileNotFoundError:
+        logger.warning('exiftool not found. Film simulation extraction requires exiftool to be installed. '
+                      'Install it with: brew install exiftool (macOS) or apt-get install exiftool (Linux)')
+        return ''
+    except subprocess.TimeoutExpired:
+        logger.warning(f'exiftool timed out while processing {image_path}')
+        return ''
+    except Exception as e:
+        logger.debug(f'Error extracting film simulation: {e}')
+        return ''
+
+
+def get_exif(img: Image, image_path: str = None, include_film_sim: bool = False) -> dict:
     """Load the exif data from an image.
 
     Args:
         img (Image): Pillow image object.
+        image_path (str, optional): Path to image file (needed for film simulation extraction)
+        include_film_sim (bool): Whether to extract film simulation data (requires exiftool)
 
     Returns:
         dict: dictionary with exif data
@@ -85,7 +122,8 @@ def get_exif(img: Image) -> dict:
         'FNumber': '',
         'FocalLength': '',
         'ISOSpeedRatings': '',
-        'ExposureTime': ''
+        'ExposureTime': '',
+        'FilmSimulation': ''
     }
 
     if exif_data:
@@ -103,6 +141,11 @@ def get_exif(img: Image) -> dict:
                     pass
 
             exif_dict[tag] = ExifItem(tag, data)
+
+    # Extract film simulation if requested and path provided
+    if include_film_sim and image_path:
+        film_sim = get_film_simulation(image_path)
+        exif_dict['FilmSimulation'] = ExifItem('FilmSimulation', film_sim)
 
     # Print the EXIF data dictionary
     # print(exif_dict)

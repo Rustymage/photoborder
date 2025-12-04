@@ -48,11 +48,16 @@ def parse_arguments():
                         help='Bold font file in fonts directory')
     parser.add_argument('-fbv', '--fontboldvariant', default=0, type=int,
                         help='Bold font style variant index')
+    parser.add_argument('--oneline', action='store_true', default=False,
+                        help='Use single-line text layout for large, polaroid, and instagram borders')
+    parser.add_argument('--sim', action='store_true', default=False,
+                        help='Include Fuji film simulation in EXIF data (requires exiftool)')
     return parser.parse_args()
 
 
 def process_image(path: str, add_exif: bool, add_palette: bool, border_type: BorderType,
-                  font: tuple[str, int], boldfont: tuple[str, int]) -> str:
+                  font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, 
+                  include_film_sim: bool = False) -> str:
     """ Add a border to an image
     Supported image types ['jpg', 'jpeg', 'png'].
 
@@ -64,6 +69,8 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         border_type (BorderType): The type of border to add to the photo.
         font: tuple[str, int]: (fontName, fontVariantIndex)
         boldfont: tuple[str, int]: (fontName, fontVariantIndex)
+        oneline: bool: Use single-line text layout for large/polaroid/instagram borders
+        include_film_sim: bool: Include Fuji film simulation data (requires exiftool)
     """
     filetypes = ['jpg', 'jpeg', 'png']
     path_dot_parts = path.split('.')
@@ -79,7 +86,7 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
     
     # Extract EXIF data before transposing (transpose creates a new image without _getexif method)
     if add_exif:
-        exif = get_exif(img)
+        exif = get_exif(img, image_path=path, include_film_sim=include_film_sim)
     
     # Apply EXIF orientation to ensure portrait images are correctly oriented
     img = ImageOps.exif_transpose(img)
@@ -100,7 +107,7 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
             if len(error_messages) > 0:
                 raise ValueError(error_messages)
 
-            img_with_border = draw_exif(img_with_border, exif, border, (font_path, font[1]), (bold_font_path, boldfont[1]))
+            img_with_border = draw_exif(img_with_border, exif, border, (font_path, font[1]), (bold_font_path, boldfont[1]), oneline, add_palette)
             save_as = f'{save_as}_exif'
 
     if add_palette:
@@ -158,7 +165,8 @@ def main():
     for path in paths:
         logger.info(f'Adding border to {path}')
         save_path = process_image(path=path, add_exif=args.exif, add_palette=args.palette, border_type=args.border_type,
-                                  font=(args.font, args.fontvariant) , boldfont=(args.fontbold, args.fontboldvariant))
+                                  font=(args.font, args.fontvariant) , boldfont=(args.fontbold, args.fontboldvariant), 
+                                  oneline=args.oneline, include_film_sim=args.sim)
         logger.info(f'Saved as {save_path}')
 
 if __name__ == "__main__":

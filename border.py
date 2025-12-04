@@ -123,8 +123,12 @@ def draw_border(img: Image, border: Border) -> Image:
 
     return canvas
 
-def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], boldfont: tuple[str, int]) -> Image:
+def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, has_palette: bool = False) -> Image:
     centered = border.border_type in (BorderType.POLAROID, BorderType.LARGE, BorderType.INSTAGRAM)
+    
+    # If oneline flag is set, force single-line layout for centered border types
+    if oneline and centered:
+        centered = False
     
     if centered:
         # For polaroid, large, and instagram: 3 lines of text, centered, stacked vertically
@@ -147,7 +151,20 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         text = f"{exif['LensMake']} {exif['LensModel']}"
         text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font_obj, fill=(128, 128, 128))
 
-        text = f"{exif['FocalLength']}  {exif['FNumber']}  {exif['ISOSpeedRatings']}  {exif['ExposureTime']}"
+        # Build settings line with optional film simulation
+        settings_parts = [
+            str(exif['FocalLength']),
+            str(exif['FNumber']),
+            str(exif['ISOSpeedRatings']),
+            str(exif['ExposureTime'])
+        ]
+        
+        # Add film simulation if available
+        film_sim = str(exif.get('FilmSimulation', ''))
+        if film_sim:
+            settings_parts.append(f"| {film_sim}")
+        
+        text = "  ".join(settings_parts)
         text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font_obj, fill=(128, 128, 128))
     else:
         # For small and medium: Single line of text at bottom, centered horizontally
@@ -162,7 +179,20 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         # Build the single line with mixed fonts: we'll draw bold camera, then regular rest
         camera_text = f"{exif['Make']} {exif['Model']}"
         lens_text = f"{exif['LensMake']} {exif['LensModel']}"
-        settings_text = f"{exif['FocalLength']}  {exif['FNumber']}  {exif['ISOSpeedRatings']}  {exif['ExposureTime']}"
+        
+        # Build settings text with optional film simulation
+        settings_parts = [
+            str(exif['FocalLength']),
+            str(exif['FNumber']),
+            str(exif['ISOSpeedRatings']),
+            str(exif['ExposureTime'])
+        ]
+        
+        film_sim = str(exif.get('FilmSimulation', ''))
+        if film_sim:
+            settings_parts.append(f"| {film_sim}")
+        
+        settings_text = "  ".join(settings_parts)
         
         # Calculate total width for centering (using heading font for camera, regular for rest)
         from PIL import ImageDraw
@@ -173,8 +203,16 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         settings_width = draw.textlength(settings_text, font=font_obj)
         total_width = camera_width + separator_width + lens_width + separator_width + settings_width
         
-        # Center the text block horizontally
-        x = (img.width - total_width) / 2
+        # If palette is present, adjust text position to leave room on the right
+        # Palette width is approximately border.bottom / 3 * number_of_colors (up to 5 colors)
+        # We'll reserve space for the palette on the right side
+        if has_palette:
+            palette_reserved_width = border.bottom  # Approximate palette width plus padding
+            available_width = img.width - palette_reserved_width - border.left
+            x = border.left + (available_width - total_width) / 2
+        else:
+            # Center the text block horizontally
+            x = (img.width - total_width) / 2
         
         # Center vertically in bottom border using actual text bounding box for precise centering
         # Get the bounding box of the heading font (tallest text in the line)
