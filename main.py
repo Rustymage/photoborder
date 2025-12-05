@@ -52,14 +52,14 @@ def parse_arguments():
                         help='Use single-line text layout for large, polaroid, and instagram borders')
     parser.add_argument('-s', action='store_true', default=False,
                         help='Include Fuji film simulation in EXIF data (requires exiftool)')
-    parser.add_argument('--filmsim-scale', type=float, default=0.9,
+    parser.add_argument('--filmsim-scale', type=float, default=0.5,
                         help='Scale factor for film-sim image relative to bottom border height (default: 0.9)')
     return parser.parse_args()
 
 
 def process_image(path: str, add_exif: bool, add_palette: bool, border_type: BorderType,
                   font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, 
-                  include_film_sim: bool = False, film_sim_scale: float = 0.9) -> str:
+                  include_film_sim: bool = False, film_sim_scale: float = 0.5) -> str:
     """ Add a border to an image
     Supported image types ['jpg', 'jpeg', 'png'].
 
@@ -113,43 +113,61 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
             img_with_border = draw_exif(img_with_border, exif, border, (font_path, font[1]), (bold_font_path, boldfont[1]), oneline, add_palette)
             save_as = f'{save_as}_exif'
 
+    # Precompute film-sim image sizing and position so palette placement can avoid overlap.
+    film_img = None
+    film_w = film_h = film_x = None
+    if include_film_sim and exif:
+        film_sim = str(exif.get('FilmSimulation', ''))
+        if film_sim:
+            film_img = get_film_simulation_image(film_sim)
+            if film_img:
+                # compute target dimensions (do not resize yet)
+                film_target_h = max(1, round(border.bottom * film_sim_scale))
+                orig_w, orig_h = film_img.size
+                film_w = max(1, int(orig_w * (film_target_h / orig_h)))
+                film_h = film_target_h
+                # right-edge alignment coordinate for the film image (relative to canvas)
+                photo_right = border.left + img.width
+                film_x = photo_right - film_w
+
     if add_palette:
         palette_size = round(border.bottom / 3)
         color_palette = load_image_color_palette(img, palette_size)
         # Position palette on right side of bottom border
         palette_x = img_with_border.width - border.right - color_palette.width
         palette_y = img_with_border.height - round(border.bottom / 2) - round(color_palette.height / 2)
+        # Shift palette to the left of the film-sim image (if present) or align to photo right edge
+        padding = max(4, round(border.bottom * 0.12))
+        photo_right = border.left + img.width
+        if film_img and film_x is not None:
+            # place palette so its right edge is film_x - padding
+            desired_palette_x = film_x - padding - color_palette.width
+        else:
+            # align palette right edge with photo right edge
+            desired_palette_x = photo_right - color_palette.width
+        # Cap desired position so palette stays inside the image canvas and not negative
+        max_palette_x = img_with_border.width - color_palette.width
+        palette_x = min(max(desired_palette_x, 0), max_palette_x)
         img_with_border = overlay_palette(img=img_with_border,
                                           color_palette=color_palette,
                                           offset=(palette_x, palette_y))
         save_as = f'{save_as}_palette'
 
     # Paste film-sim image inline with the palette area (or at the right if no palette)
-    if include_film_sim and exif:
-        film_sim = str(exif.get('FilmSimulation', ''))
-        if film_sim:
-            film_img = get_film_simulation_image(film_sim)
-            if film_img:
-                # scale film image to bottom border height fraction (configurable)
-                film_target_h = max(1, round(border.bottom * film_sim_scale))
-                orig_w, orig_h = film_img.size
-                film_w = max(1, int(orig_w * (film_target_h / orig_h)))
-                film_h = film_target_h
-                resized = film_img.resize((film_w, film_h), resample=Image.LANCZOS)
+    if include_film_sim and exif and film_img:
+        # use precomputed film_w, film_h, film_x
+        resized = film_img.resize((film_w, film_h), resample=Image.LANCZOS)
 
-                # Right-edge align film image with the photograph's right edge
-                photo_right = border.left + img.width
-                film_x = photo_right - film_w
-                # Vertical placement: align with palette vertically if present, otherwise center in bottom border
-                if add_palette and 'color_palette' in locals():
-                    film_y = palette_y + (color_palette.height - film_h) // 2
-                else:
-                    film_y = img_with_border.height - round(border.bottom / 2) - round(film_h / 2)
+        # Vertical placement: align with palette vertically if present, otherwise center in bottom border
+        if add_palette and 'color_palette' in locals():
+            film_y = palette_y + (color_palette.height - film_h) // 2
+        else:
+            film_y = img_with_border.height - round(border.bottom / 2) - round(film_h / 2)
 
-                try:
-                    img_with_border.paste(resized, (int(film_x), int(film_y)), resized)
-                except Exception:
-                    img_with_border.paste(resized, (int(film_x), int(film_y)))
+        try:
+            img_with_border.paste(resized, (int(film_x), int(film_y)), resized)
+        except Exception:
+            img_with_border.paste(resized, (int(film_x), int(film_y)))
 
     # There are two parts to JPEG quality. The first is the quality setting.
     #
