@@ -50,7 +50,7 @@ def parse_arguments():
                         help='Bold font style variant index')
     parser.add_argument('--oneline', action='store_true', default=False,
                         help='Use single-line text layout for large, polaroid, and instagram borders')
-    parser.add_argument('--sim', action='store_true', default=False,
+    parser.add_argument('-s', action='store_true', default=False,
                         help='Include Fuji film simulation in EXIF data (requires exiftool)')
     return parser.parse_args()
 
@@ -166,7 +166,7 @@ def main():
         logger.info(f'Adding border to {path}')
         save_path = process_image(path=path, add_exif=args.exif, add_palette=args.palette, border_type=args.border_type,
                                   font=(args.font, args.fontvariant) , boldfont=(args.fontbold, args.fontboldvariant), 
-                                  oneline=args.oneline, include_film_sim=args.sim)
+                                  oneline=args.oneline, include_film_sim=args.s)
         logger.info(f'Saved as {save_path}')
 
 if __name__ == "__main__":
