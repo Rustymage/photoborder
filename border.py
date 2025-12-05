@@ -211,8 +211,9 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         text = f"{exif['Make']} {exif['Model']}"
         text_img, (x, y) = tm.draw_text_on_image(img, text, (x,y), centered, heading_font, fill=(100, 100, 100))
 
-        text = f"{exif['LensMake']} {exif['LensModel']}"
-        text_img, (x, y) = tm.draw_text_on_image(text_img, text, (x,y), centered, font_obj, fill=(128, 128, 128))
+        # Use shortened lens name
+        lens_name = str(exif.get('LensModelShort', exif.get('LensModel', '')))
+        text_img, (x, y) = tm.draw_text_on_image(text_img, lens_name, (x,y), centered, font_obj, fill=(128, 128, 128))
 
         # Build settings line and optional film simulation; draw the film-sim image inline
         settings_parts = [
@@ -268,7 +269,8 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         
         # Build the single line with mixed fonts: we'll draw bold camera, then regular rest
         camera_text = f"{exif['Make']} {exif['Model']}"
-        lens_text = f"{exif['LensMake']} {exif['LensModel']}"
+        # Use shortened lens name
+        lens_text = str(exif.get('LensModelShort', exif.get('LensModel', '')))
         
         # Build settings text and optional film simulation (we'll draw film image inline)
         settings_parts = [
