@@ -127,7 +127,7 @@ def draw_border(img: Image, border: Border) -> Image:
 
     return canvas
 
-def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, has_palette: bool = False) -> Image:
+def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, has_palette: bool = False, use_film_image: bool = False) -> Image:
     centered = border.border_type in (BorderType.POLAROID, BorderType.LARGE, BorderType.INSTAGRAM)
     
     # If oneline flag is set, force single-line layout for centered border types
@@ -166,16 +166,18 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         # Join settings with dots (base text, film sim drawn separately)
         settings_base_text = " · ".join(settings_parts)
 
-        # Film simulation: only keep the text here; the image will be drawn inline with the palette by main.py
+        # Film simulation: text may be suppressed if a film image will be used instead
         film_sim = str(exif.get('FilmSimulation', ''))
+        film_text = film_sim if (film_sim and not use_film_image) else ''
 
         # Calculate widths so we can center the whole block
         from PIL import ImageDraw
         draw = ImageDraw.Draw(img)
         settings_base_width = draw.textlength(settings_base_text, font=font_obj)
-        pipe_text = "  | " if film_sim else ""
-        pipe_width = draw.textlength(pipe_text, font=font_obj) if film_sim else 0
-        film_text_width = draw.textlength(film_sim, font=font_obj) if film_sim else 0
+        # Use pipe separator only when film text is chosen; no pipe when using film image
+        pipe_text = "  | " if film_text else ""
+        pipe_width = draw.textlength(pipe_text, font=font_obj) if pipe_text else 0
+        film_text_width = draw.textlength(film_text, font=font_obj) if film_text else 0
 
         # Center only text widths here; film image will be positioned at the right with the palette
         total_width = settings_base_width + (pipe_width + film_text_width if film_sim else 0)
@@ -187,9 +189,10 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         text_img, (x, y) = tm.draw_text_on_image(img, settings_base_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
 
         if film_sim:
-            # draw pipe separator then film simulation text (no image here)
+            # draw pipe separator then film simulation text only if not using the film image
             text_img, (x, _) = tm.draw_text_on_image(text_img, pipe_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
-            text_img, (x, y) = tm.draw_text_on_image(text_img, film_sim, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
+            if film_text:
+                text_img, (x, y) = tm.draw_text_on_image(text_img, film_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
     else:
         # For small and medium: Single line of text at bottom, centered horizontally
         # Increased multiplier from 0.2 to 0.32 for larger, more readable single-line text
@@ -226,7 +229,8 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         lens_width = draw.textlength(lens_text, font=font_obj)
         settings_base_width = draw.textlength(settings_base_text, font=font_obj)
 
-        pipe_text = "  | " if film_sim else ""
+        # Use pipe separator only when film text is chosen; no pipe when using film image
+        pipe_text = "  | " if film_text else ""
         pipe_width = draw.textlength(pipe_text, font=font_obj) if film_sim else 0
         film_text_width = draw.textlength(film_sim, font=font_obj) if film_sim else 0
 

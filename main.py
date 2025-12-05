@@ -97,22 +97,6 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
     img_with_border = draw_border(img, border)
     save_as = f'{filename}_border-{border.border_type}'
 
-    if add_exif:
-        if exif:
-            moduledir = os.path.dirname(os.path.abspath(__file__))
-            fontdir = os.path.join(moduledir, "fonts")
-            font_path = os.path.join(fontdir, font[0])
-            bold_font_path = os.path.join(fontdir, boldfont[0])
-
-            # Exit early if a problem exists with the fonts
-            error_messages = [err for f in [(font_path, font[1]), (bold_font_path, boldfont[1])]
-                              if (err := validate_font(fontpath=f[0], index=f[1]))]
-            if len(error_messages) > 0:
-                raise ValueError(error_messages)
-
-            img_with_border = draw_exif(img_with_border, exif, border, (font_path, font[1]), (bold_font_path, boldfont[1]), oneline, add_palette)
-            save_as = f'{save_as}_exif'
-
     # Precompute film-sim image sizing and position so palette placement can avoid overlap.
     film_img = None
     film_w = film_h = film_x = None
@@ -129,6 +113,25 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
                 # right-edge alignment coordinate for the film image (relative to canvas)
                 photo_right = border.left + img.width
                 film_x = photo_right - film_w
+
+    if add_exif:
+        if exif:
+            moduledir = os.path.dirname(os.path.abspath(__file__))
+            fontdir = os.path.join(moduledir, "fonts")
+            font_path = os.path.join(fontdir, font[0])
+            bold_font_path = os.path.join(fontdir, boldfont[0])
+
+            # Exit early if a problem exists with the fonts
+            error_messages = [err for f in [(font_path, font[1]), (bold_font_path, boldfont[1])]
+                              if (err := validate_font(fontpath=f[0], index=f[1]))]
+            if len(error_messages) > 0:
+                raise ValueError(error_messages)
+
+            # We'll compute film image usage below and pass that into draw_exif
+            # (film image sizing/position will be precomputed just after this block)
+            use_film_image = True if (film_img and include_film_sim) else False
+            img_with_border = draw_exif(img_with_border, exif, border, (font_path, font[1]), (bold_font_path, boldfont[1]), oneline, add_palette, use_film_image)
+            save_as = f'{save_as}_exif'
 
     if add_palette:
         palette_size = round(border.bottom / 3)
