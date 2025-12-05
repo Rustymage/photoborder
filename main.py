@@ -171,14 +171,17 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         resized = film_img.resize((film_w, film_h), resample=Image.LANCZOS)
 
         # Vertical placement
-        if twoline:
-            # For twoline layout, align film sim top edge with visual top of first text line
+        if twoline or oneline:
+            # For twoline and oneline layouts, align film sim top edge with visual top of first text line
             # Text is drawn with anchor "ls" (left-baseline), so baseline is at y_start
             # The visual top of text is approximately baseline - 0.75 * font_size
             breathing_room = max(16, int(border.bottom * 0.20))
             text_baseline_y = img_with_border.height - border.bottom + breathing_room
             # Estimate font size as a fraction of border (using same logic as in border.py)
-            multiplier = 0.20
+            if twoline:
+                multiplier = 0.20
+            else:  # oneline
+                multiplier = 0.22
             estimated_heading_font_size = int(border.bottom * (multiplier + 0.04))
             max_font_from_border = int(border.bottom * 0.18)
             estimated_heading_font_size = min(estimated_heading_font_size, max_font_from_border)
