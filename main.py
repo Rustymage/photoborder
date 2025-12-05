@@ -52,12 +52,14 @@ def parse_arguments():
                         help='Use single-line text layout for large, polaroid, and instagram borders')
     parser.add_argument('-s', action='store_true', default=False,
                         help='Include Fuji film simulation in EXIF data (requires exiftool)')
+    parser.add_argument('--filmsim-scale', type=float, default=0.9,
+                        help='Scale factor for film-sim image relative to bottom border height (default: 0.9)')
     return parser.parse_args()
 
 
 def process_image(path: str, add_exif: bool, add_palette: bool, border_type: BorderType,
                   font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, 
-                  include_film_sim: bool = False) -> str:
+                  include_film_sim: bool = False, film_sim_scale: float = 0.9) -> str:
     """ Add a border to an image
     Supported image types ['jpg', 'jpeg', 'png'].
 
@@ -71,6 +73,7 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         boldfont: tuple[str, int]: (fontName, fontVariantIndex)
         oneline: bool: Use single-line text layout for large/polaroid/instagram borders
         include_film_sim: bool: Include Fuji film simulation data (requires exiftool)
+        film_sim_scale: float: Scale factor for the film-sim image relative to the bottom border height.
     """
     filetypes = ['jpg', 'jpeg', 'png']
     path_dot_parts = path.split('.')
@@ -127,21 +130,20 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         if film_sim:
             film_img = get_film_simulation_image(film_sim)
             if film_img:
-                # scale film image to bottom border height fraction
-                film_target_h = max(1, round(border.bottom * 0.9))
+                # scale film image to bottom border height fraction (configurable)
+                film_target_h = max(1, round(border.bottom * film_sim_scale))
                 orig_w, orig_h = film_img.size
                 film_w = max(1, int(orig_w * (film_target_h / orig_h)))
                 film_h = film_target_h
                 resized = film_img.resize((film_w, film_h), resample=Image.LANCZOS)
 
-                padding = max(2, round(border.bottom * 0.12))
+                # Right-edge align film image with the photograph's right edge
+                photo_right = border.left + img.width
+                film_x = photo_right - film_w
+                # Vertical placement: align with palette vertically if present, otherwise center in bottom border
                 if add_palette and 'color_palette' in locals():
-                    # place film image to the left of the palette with a small gap
-                    film_x = palette_x - padding - film_w
                     film_y = palette_y + (color_palette.height - film_h) // 2
                 else:
-                    # place film image at the right side of the border area
-                    film_x = img_with_border.width - border.right - film_w - padding
                     film_y = img_with_border.height - round(border.bottom / 2) - round(film_h / 2)
 
                 try:
@@ -193,8 +195,8 @@ def main():
     for path in paths:
         logger.info(f'Adding border to {path}')
         save_path = process_image(path=path, add_exif=args.exif, add_palette=args.palette, border_type=args.border_type,
-                                  font=(args.font, args.fontvariant) , boldfont=(args.fontbold, args.fontboldvariant), 
-                                  oneline=args.oneline, include_film_sim=args.s)
+                      font=(args.font, args.fontvariant) , boldfont=(args.fontbold, args.fontboldvariant), 
+                      oneline=args.oneline, include_film_sim=args.s, film_sim_scale=args.filmsim_scale)
         logger.info(f'Saved as {save_path}')
 
 if __name__ == "__main__":

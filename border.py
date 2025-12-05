@@ -236,16 +236,23 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
             + (pipe_width + film_text_width if film_sim else 0)
         )
         
-        # If palette is present, adjust text position to leave room on the right
-        # Palette width is approximately border.bottom / 3 * number_of_colors (up to 5 colors)
-        # We'll reserve space for the palette on the right side
-        if has_palette:
-            palette_reserved_width = border.bottom  # Approximate palette width plus padding
-            available_width = img.width - palette_reserved_width - border.left
-            x = border.left + (available_width - total_width) / 2
+        # When using single-line layout with film-sim or palette, left-align the text
+        # so the palette/film image have breathing room on the right.
+        left_align = oneline and (has_palette or bool(film_sim))
+        if left_align:
+            # small left padding to match typical text inset
+            x = border.left + int(font_obj.size * 0.5)
         else:
-            # Center the text block horizontally
-            x = (img.width - total_width) / 2
+            # If palette is present, adjust text position to leave room on the right
+            # Palette width is approximately border.bottom / 3 * number_of_colors (up to 5 colors)
+            # We'll reserve space for the palette on the right side
+            if has_palette:
+                palette_reserved_width = border.bottom  # Approximate palette width plus padding
+                available_width = img.width - palette_reserved_width - border.left
+                x = border.left + (available_width - total_width) / 2
+            else:
+                # Center the text block horizontally
+                x = (img.width - total_width) / 2
         
         # Center vertically in bottom border using actual text bounding box for precise centering
         # Get the bounding box of the heading font (tallest text in the line)
