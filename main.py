@@ -50,6 +50,8 @@ def parse_arguments():
                         help='Bold font style variant index')
     parser.add_argument('--oneline', action='store_true', default=False,
                         help='Use single-line text layout for large, polaroid, and instagram borders')
+    parser.add_argument('--twoline', action='store_true', default=False,
+                        help='Use two-line left-aligned layout for large, polaroid, and instagram borders')
     parser.add_argument('-s', action='store_true', default=False,
                         help='Include Fuji film simulation in EXIF data (requires exiftool)')
     parser.add_argument('--filmsim-scale', type=float, default=0.5,
@@ -59,7 +61,7 @@ def parse_arguments():
 
 def process_image(path: str, add_exif: bool, add_palette: bool, border_type: BorderType,
                   font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, 
-                  include_film_sim: bool = False, film_sim_scale: float = 0.5) -> str:
+                  twoline: bool = False, include_film_sim: bool = False, film_sim_scale: float = 0.5) -> str:
     """ Add a border to an image
     Supported image types ['jpg', 'jpeg', 'png'].
 
@@ -72,6 +74,7 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         font: tuple[str, int]: (fontName, fontVariantIndex)
         boldfont: tuple[str, int]: (fontName, fontVariantIndex)
         oneline: bool: Use single-line text layout for large/polaroid/instagram borders
+        twoline: bool: Use two-line left-aligned layout for large/polaroid/instagram borders
         include_film_sim: bool: Include Fuji film simulation data (requires exiftool)
         film_sim_scale: float: Scale factor for the film-sim image relative to the bottom border height.
     """
@@ -130,7 +133,7 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
             # We'll compute film image usage below and pass that into draw_exif
             # (film image sizing/position will be precomputed just after this block)
             use_film_image = True if (film_img and include_film_sim) else False
-            img_with_border = draw_exif(img_with_border, exif, border, (font_path, font[1]), (bold_font_path, boldfont[1]), oneline, add_palette, use_film_image)
+            img_with_border = draw_exif(img_with_border, exif, border, (font_path, font[1]), (bold_font_path, boldfont[1]), oneline, twoline, add_palette, use_film_image)
             save_as = f'{save_as}_exif'
 
     if add_palette:
@@ -138,7 +141,13 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         color_palette = load_image_color_palette(img, palette_size)
         # Position palette on right side of bottom border
         palette_x = img_with_border.width - border.right - color_palette.width
-        palette_y = img_with_border.height - round(border.bottom / 2) - round(color_palette.height / 2)
+        # For twoline layout, align top edge with breathing room from photo edge
+        if twoline:
+            breathing_room = max(16, int(border.bottom * 0.20))
+            palette_y = img_with_border.height - border.bottom + breathing_room
+        else:
+            # Default: center in bottom border
+            palette_y = img_with_border.height - round(border.bottom / 2) - round(color_palette.height / 2)
         # Shift palette to the left of the film-sim image (if present) or align to photo right edge
         padding = max(4, round(border.bottom * 0.12))
         photo_right = border.left + img.width
@@ -161,10 +170,26 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         # use precomputed film_w, film_h, film_x
         resized = film_img.resize((film_w, film_h), resample=Image.LANCZOS)
 
-        # Vertical placement: align with palette vertically if present, otherwise center in bottom border
-        if add_palette and 'color_palette' in locals():
+        # Vertical placement
+        if twoline:
+            # For twoline layout, align film sim top edge with visual top of first text line
+            # Text is drawn with anchor "ls" (left-baseline), so baseline is at y_start
+            # The visual top of text is approximately baseline - 0.75 * font_size
+            breathing_room = max(16, int(border.bottom * 0.20))
+            text_baseline_y = img_with_border.height - border.bottom + breathing_room
+            # Estimate font size as a fraction of border (using same logic as in border.py)
+            multiplier = 0.20
+            estimated_heading_font_size = int(border.bottom * (multiplier + 0.04))
+            max_font_from_border = int(border.bottom * 0.18)
+            estimated_heading_font_size = min(estimated_heading_font_size, max_font_from_border)
+            # Visual top of text is approximately baseline - 0.75 * font_size
+            visual_text_top = text_baseline_y - int(estimated_heading_font_size * 0.75)
+            film_y = visual_text_top
+        elif add_palette and 'color_palette' in locals():
+            # Align with palette vertically if present
             film_y = palette_y + (color_palette.height - film_h) // 2
         else:
+            # Default: center in bottom border
             film_y = img_with_border.height - round(border.bottom / 2) - round(film_h / 2)
 
         try:
@@ -217,7 +242,7 @@ def main():
         logger.info(f'Adding border to {path}')
         save_path = process_image(path=path, add_exif=args.exif, add_palette=args.palette, border_type=args.border_type,
                       font=(args.font, args.fontvariant) , boldfont=(args.fontbold, args.fontboldvariant), 
-                      oneline=args.oneline, include_film_sim=args.s, film_sim_scale=args.filmsim_scale)
+                      oneline=args.oneline, twoline=args.twoline, include_film_sim=args.s, film_sim_scale=args.filmsim_scale)
         logger.info(f'Saved as {save_path}')
 
 if __name__ == "__main__":

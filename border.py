@@ -127,14 +127,67 @@ def draw_border(img: Image, border: Border) -> Image:
 
     return canvas
 
-def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, has_palette: bool = False, use_film_image: bool = False) -> Image:
+def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, twoline: bool = False, has_palette: bool = False, use_film_image: bool = False) -> Image:
     centered = border.border_type in (BorderType.POLAROID, BorderType.LARGE, BorderType.INSTAGRAM)
     
     # If oneline flag is set, force single-line layout for centered border types
     if oneline and centered:
         centered = False
     
-    if centered:
+    # If twoline flag is set, use two-line left-aligned layout for centered border types
+    if twoline and border.border_type in (BorderType.POLAROID, BorderType.LARGE, BorderType.INSTAGRAM):
+        # Two-line left-aligned layout
+        # Line 1 (bold): Camera Make Model | Lens Make Model
+        # Line 2 (regular): Focal Length · f/Stop · ISO · Shutter Speed
+        multiplier = 0.20
+        font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
+        heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.04), boldfont[0], index=boldfont[1])
+        max_font_from_border = max(1, int(border.bottom * 0.18))
+        font_size = min(font_size, max_font_from_border)
+        heading_font_size = min(heading_font_size, max_font_from_border)
+        font_obj = tm.create_font(font_size, fontpath=font[0], index=font[1])
+        heading_font = tm.create_font(heading_font_size, fontpath=boldfont[0], index=boldfont[1])
+        
+        # Build line 1: Camera Make Model | Lens (all bold)
+        # Use shortened lens name if available, otherwise fall back to full name
+        lens_name = str(exif.get('LensModelShort', exif.get('LensModel', '')))
+        line1_text = f"{exif['Make']} {exif['Model']} | {lens_name}"
+        
+        # Build line 2: Settings
+        settings_parts = [
+            str(exif['FocalLength']),
+            str(exif['FNumber']),
+            str(exif['ISOSpeedRatings']),
+            str(exif['ExposureTime'])
+        ]
+        line2_text = " · ".join(settings_parts)
+        
+        # Film simulation handling
+        film_sim = str(exif.get('FilmSimulation', ''))
+        film_text = film_sim if (film_sim and not use_film_image) else ''
+        if film_text:
+            line2_text += f"  | {film_text}"
+        
+        # Calculate vertical positioning - add significant space from bottom edge of photo
+        # Position text lower in the border for more breathing room
+        line_spacing = font_obj.size * 0.8  # Reduced spacing between lines for tighter layout
+        breathing_room = max(16, int(border.bottom * 0.20))  # Extra padding from photo edge
+        y_start = img.height - border.bottom + breathing_room
+        
+        # X position: aligned with left edge of photo with padding
+        x = border.left + max(10, int(font_obj.size * 0.5))
+        
+        # Draw line 1 (bold)
+        y = y_start
+        text_img, (x_end, y) = tm.draw_text_on_image(img, line1_text, (x, y), centered=False, font=heading_font, fill=(100, 100, 100))
+        
+        # Draw line 2 (regular) 
+        y = y_start + heading_font.size + line_spacing
+        text_img, (x_end, y) = tm.draw_text_on_image(text_img, line2_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
+        
+        return text_img
+    
+    elif centered:
         # For polaroid, large, and instagram: 3 lines of text, centered, stacked vertically
         # Reduced multiplier for more reasonable text sizing
         multiplier = 0.20

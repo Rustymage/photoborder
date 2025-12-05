@@ -71,6 +71,55 @@ class ExifItem:
         return fmt_data
 
 
+def shorten_lens_name(lens_model: str, lens_make: str = '') -> str:
+    """
+    Shorten lens model name by removing redundant manufacturer info and common prefixes.
+    
+    Args:
+        lens_model (str): Full lens model name
+        lens_make (str): Lens manufacturer name (optional)
+        
+    Returns:
+        str: Shortened lens model name
+    """
+    if not lens_model or lens_model == '':
+        return lens_model
+    
+    # Remove lens make from the beginning if it's redundant
+    if lens_make and lens_model.startswith(lens_make):
+        lens_model = lens_model[len(lens_make):].strip()
+    
+    # Common prefixes to remove
+    prefixes_to_remove = [
+        'FUJINON',
+        'FUJIFILM',
+        'XF',
+        'XC',
+        'NIKKOR',
+        'FE',
+        'E',
+    ]
+    
+    for prefix in prefixes_to_remove:
+        if lens_model.startswith(prefix + ' '):
+            lens_model = lens_model[len(prefix):].strip()
+            break
+    
+    # Remove common suffixes that add clutter
+    suffixes_to_remove = [
+        ' R LM WR',
+        ' OIS',
+        ' WR',
+        ' LM',
+        ' R',
+    ]
+    
+    for suffix in suffixes_to_remove:
+        if lens_model.endswith(suffix):
+            lens_model = lens_model[:-len(suffix)].strip()
+    
+    return lens_model
+
 def get_film_simulation(image_path: str) -> str:
     """
     Extract Fuji film simulation mode from image using exiftool.
@@ -124,6 +173,7 @@ def get_exif(img: Image, image_path: str = None, include_film_sim: bool = False)
         'Model': '',
         'LensMake': '',
         'LensModel': '',
+        'LensModelShort': '',
         'FNumber': '',
         'FocalLength': '',
         'ISOSpeedRatings': '',
@@ -151,6 +201,13 @@ def get_exif(img: Image, image_path: str = None, include_film_sim: bool = False)
     if include_film_sim and image_path:
         film_sim = get_film_simulation(image_path)
         exif_dict['FilmSimulation'] = ExifItem('FilmSimulation', film_sim)
+
+    # Create shortened lens model name
+    lens_model = str(exif_dict.get('LensModel', ''))
+    lens_make = str(exif_dict.get('LensMake', ''))
+    if lens_model:
+        shortened = shorten_lens_name(lens_model, lens_make)
+        exif_dict['LensModelShort'] = ExifItem('LensModelShort', shortened)
 
     # Print the EXIF data dictionary
     # print(exif_dict)
