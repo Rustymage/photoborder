@@ -140,6 +140,11 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         multiplier = 0.28
         font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
         heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.04), boldfont[0], index=boldfont[1])
+        # Cap font sizes to a reasonable fraction of the bottom border to avoid runaway sizes
+        # Use a tighter cap to avoid huge text when borders are large
+        max_font_from_border = max(1, int(border.bottom * 0.25))
+        font_size = min(font_size, max_font_from_border)
+        heading_font_size = min(heading_font_size, max_font_from_border)
         font_obj = tm.create_font(font_size, fontpath=font[0], index=font[1])
         heading_font = tm.create_font(heading_font_size, fontpath=boldfont[0], index=boldfont[1])
 
@@ -200,6 +205,11 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         multiplier = 0.32
         font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
         heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.04), boldfont[0], index=boldfont[1])
+        # Cap font sizes to a reasonable fraction of the bottom border to avoid runaway sizes
+        # Use a tighter cap to avoid huge text when borders are large
+        max_font_from_border = max(1, int(border.bottom * 0.25))
+        font_size = min(font_size, max_font_from_border)
+        heading_font_size = min(heading_font_size, max_font_from_border)
         font_obj = tm.create_font(font_size, fontpath=font[0], index=font[1])
         heading_font = tm.create_font(heading_font_size, fontpath=boldfont[0], index=boldfont[1])
         
@@ -257,6 +267,43 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
             else:
                 # Center the text block horizontally
                 x = (img.width - total_width) / 2
+
+            # If the computed total width is wider than available width, scale down fonts
+            # to fit (only for single-line centered layout where centering is used).
+            try:
+                # determine available horizontal space for the text block
+                if has_palette:
+                    avail = available_width
+                else:
+                    avail = img.width
+
+                if total_width > avail and total_width > 0:
+                    scale = avail / total_width
+                    # compute new font sizes scaled by the ratio
+                    new_font_size = max(1, int(font_obj.size * scale))
+                    new_heading_size = max(1, int(heading_font.size * scale))
+                    # recreate fonts with new sizes
+                    font_obj = tm.create_font(new_font_size, fontpath=font[0], index=font[1])
+                    heading_font = tm.create_font(new_heading_size, fontpath=boldfont[0], index=boldfont[1])
+                    # recompute widths with new fonts
+                    camera_width = draw.textlength(camera_text, font=heading_font)
+                    separator_width = draw.textlength(" · ", font=font_obj)
+                    lens_width = draw.textlength(lens_text, font=font_obj)
+                    settings_base_width = draw.textlength(settings_base_text, font=font_obj)
+                    pipe_width = draw.textlength(pipe_text, font=font_obj) if pipe_text else 0
+                    film_text_width = draw.textlength(film_text, font=font_obj) if film_text else 0
+                    total_width = (
+                        camera_width + separator_width + lens_width + separator_width + settings_base_width
+                        + (pipe_width + film_text_width if film_sim else 0)
+                    )
+                    # re-center with adjusted widths
+                    if has_palette:
+                        x = border.left + (available_width - total_width) / 2
+                    else:
+                        x = (img.width - total_width) / 2
+            except Exception:
+                # if any error occurs, fall back to previously computed x
+                pass
         
         # Center vertically in bottom border using actual text bounding box for precise centering
         # Get the bounding box of the heading font (tallest text in the line)
@@ -290,16 +337,28 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
 
 # Load film simulation images
 def get_film_simulation_image(film_sim: str) -> Optional[Image.Image]:
+    """
+    Find and load the film simulation image file that matches the given film simulation name.
+    
+    Args:
+        film_sim (str): Film simulation name (e.g., "Reala Ace", "Nostalgic Neg")
+        
+    Returns:
+        Optional[Image.Image]: The matched film simulation image, or None if not found
+    """
     film_sim_images = {}
     sim_image_files = glob.glob('fuji-sims/*.png')
     for filepath in sim_image_files:
         sim_name = os.path.splitext(os.path.basename(filepath))[0]
         film_sim_images[sim_name] = Image.open(filepath)
     
-    print("target: " + film_sim)
-    for image in film_sim_images:
-        print(image.lower())
-        if film_sim.lower() in image.lower():
-            print(f"Match found: {film_sim_images[image]}")
-            return film_sim_images[image]
+    # Normalize the target film sim name for matching
+    # Convert to lowercase and replace spaces with underscores
+    normalized_target = film_sim.lower().replace(' ', '_')
+    
+    for image_key in film_sim_images:
+        normalized_key = image_key.lower()
+        # Check for exact match or substring match
+        if normalized_target == normalized_key or normalized_target in normalized_key:
+            return film_sim_images[image_key]
     return None

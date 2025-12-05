@@ -74,12 +74,14 @@ class ExifItem:
 def get_film_simulation(image_path: str) -> str:
     """
     Extract Fuji film simulation mode from image using exiftool.
+    Normalizes the film simulation name by replacing underscores with spaces
+    and converting to title case for consistent matching.
     
     Args:
         image_path (str): Path to the image file
         
     Returns:
-        str: Film simulation name (e.g., "Reala ACE", "Nostalgic Neg") or empty string
+        str: Normalized film simulation name (e.g., "Reala Ace", "Nostalgic Neg") or empty string
     """
     try:
         result = subprocess.run(
@@ -89,6 +91,9 @@ def get_film_simulation(image_path: str) -> str:
             timeout=5
         )
         film_mode = result.stdout.strip()
+        if film_mode:
+            # Normalize: replace underscores with spaces and convert to title case
+            film_mode = film_mode.replace('_', ' ').title()
         return film_mode if film_mode else ''
     except FileNotFoundError:
         logger.warning('exiftool not found. Film simulation extraction requires exiftool to be installed. '
