@@ -136,13 +136,13 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
     
     if centered:
         # For polaroid, large, and instagram: 3 lines of text, centered, stacked vertically
-        # Increased multiplier from 0.2 to 0.28 for larger, more readable text
-        multiplier = 0.28
+        # Reduced multiplier for more reasonable text sizing
+        multiplier = 0.20
         font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
         heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.04), boldfont[0], index=boldfont[1])
         # Cap font sizes to a reasonable fraction of the bottom border to avoid runaway sizes
         # Use a tighter cap to avoid huge text when borders are large
-        max_font_from_border = max(1, int(border.bottom * 0.25))
+        max_font_from_border = max(1, int(border.bottom * 0.18))
         font_size = min(font_size, max_font_from_border)
         heading_font_size = min(heading_font_size, max_font_from_border)
         font_obj = tm.create_font(font_size, fontpath=font[0], index=font[1])
@@ -150,8 +150,9 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
 
         # 3 Lines of text. 1 heading, two normal. Minus heading margins. A bit sketchy but it aligns fine.
         total_font_height = heading_font.size + (2 * font_obj.size) - (heading_font.size / 2)
+        # Add extra spacing from the top of the border area for breathing room
         y = img.height - border.bottom + \
-            (border.bottom / 2) - (total_font_height / 2)
+            (border.bottom / 2) - (total_font_height / 2) + (border.bottom * 0.05)
         x = border.left
 
         text = f"{exif['Make']} {exif['Model']}"
@@ -200,14 +201,13 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
                 text_img, (x, y) = tm.draw_text_on_image(text_img, film_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
     else:
         # For small and medium: Single line of text at bottom, centered horizontally
-        # Increased multiplier from 0.2 to 0.32 for larger, more readable single-line text
-        # (0.4 was too large and caused text cutoff on small borders)
-        multiplier = 0.32
+        # Reduced multiplier for more reasonable text sizing
+        multiplier = 0.22
         font_size = tm.get_optimal_font_size("Test", border.bottom * multiplier, font[0], index=font[1])
         heading_font_size = tm.get_optimal_font_size("Test", border.bottom * (multiplier + 0.04), boldfont[0], index=boldfont[1])
         # Cap font sizes to a reasonable fraction of the bottom border to avoid runaway sizes
         # Use a tighter cap to avoid huge text when borders are large
-        max_font_from_border = max(1, int(border.bottom * 0.25))
+        max_font_from_border = max(1, int(border.bottom * 0.18))
         font_size = min(font_size, max_font_from_border)
         heading_font_size = min(heading_font_size, max_font_from_border)
         font_obj = tm.create_font(font_size, fontpath=font[0], index=font[1])
@@ -228,8 +228,9 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         # Join settings with dots (base text, film sim drawn separately)
         settings_base_text = " · ".join(settings_parts)
 
-        # Film simulation: only keep the text here; the image will be drawn inline with the palette by main.py
+        # Film simulation: text may be suppressed if a film image will be used instead
         film_sim = str(exif.get('FilmSimulation', ''))
+        film_text = film_sim if (film_sim and not use_film_image) else ''
 
         # Calculate total width for centering (using heading font for camera, regular for rest)
         from PIL import ImageDraw
@@ -241,8 +242,8 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
 
         # Use pipe separator only when film text is chosen; no pipe when using film image
         pipe_text = "  | " if film_text else ""
-        pipe_width = draw.textlength(pipe_text, font=font_obj) if film_sim else 0
-        film_text_width = draw.textlength(film_sim, font=font_obj) if film_sim else 0
+        pipe_width = draw.textlength(pipe_text, font=font_obj) if pipe_text else 0
+        film_text_width = draw.textlength(film_text, font=font_obj) if film_text else 0
 
         # No film image width included here; the film image will be pasted on the right with the palette
         total_width = (
@@ -305,13 +306,13 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
                 # if any error occurs, fall back to previously computed x
                 pass
         
-        # Center vertically in bottom border using actual text bounding box for precise centering
+        # Center vertically in bottom border using actual text bounding box
         # Get the bounding box of the heading font (tallest text in the line)
         bbox = heading_font.getbbox(camera_text)
         text_height = bbox[3] - bbox[1]  # bottom - top gives actual rendered height
-        # Position Y so the text is perfectly centered in the bottom border
-        # Note: anchor is "ls" (left-baseline), so we need to account for the baseline position
-        y = img.height - border.bottom + (border.bottom / 2) - (text_height / 2) + bbox[3]
+        # Position Y with more spacing from the top of the border area
+        # Move text down slightly to create breathing room between image and text
+        y = img.height - border.bottom + (border.bottom / 2) - (text_height / 2) + bbox[3] + (border.bottom * 0.05)
         
         # Draw camera (bold)
         text_img, (x, _) = tm.draw_text_on_image(img, camera_text, (x, y), centered=False, font=heading_font, fill=(100, 100, 100))
