@@ -11,7 +11,7 @@ from PIL import Image, ImageOps
 from exif import get_exif
 from filemanager import should_include_file, get_directory_files
 from palette import load_image_color_palette, overlay_palette
-from border import BorderType, create_border, draw_border, draw_exif
+from border import BorderType, create_border, draw_border, draw_exif, get_film_simulation_image
 from text import validate_font
 
 # Enable logging
@@ -120,6 +120,34 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
                                           color_palette=color_palette,
                                           offset=(palette_x, palette_y))
         save_as = f'{save_as}_palette'
+
+    # Paste film-sim image inline with the palette area (or at the right if no palette)
+    if include_film_sim and exif:
+        film_sim = str(exif.get('FilmSimulation', ''))
+        if film_sim:
+            film_img = get_film_simulation_image(film_sim)
+            if film_img:
+                # scale film image to bottom border height fraction
+                film_target_h = max(1, round(border.bottom * 0.9))
+                orig_w, orig_h = film_img.size
+                film_w = max(1, int(orig_w * (film_target_h / orig_h)))
+                film_h = film_target_h
+                resized = film_img.resize((film_w, film_h), resample=Image.LANCZOS)
+
+                padding = max(2, round(border.bottom * 0.12))
+                if add_palette and 'color_palette' in locals():
+                    # place film image to the left of the palette with a small gap
+                    film_x = palette_x - padding - film_w
+                    film_y = palette_y + (color_palette.height - film_h) // 2
+                else:
+                    # place film image at the right side of the border area
+                    film_x = img_with_border.width - border.right - film_w - padding
+                    film_y = img_with_border.height - round(border.bottom / 2) - round(film_h / 2)
+
+                try:
+                    img_with_border.paste(resized, (int(film_x), int(film_y)), resized)
+                except Exception:
+                    img_with_border.paste(resized, (int(film_x), int(film_y)))
 
     # There are two parts to JPEG quality. The first is the quality setting.
     #

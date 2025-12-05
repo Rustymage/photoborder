@@ -166,9 +166,8 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         # Join settings with dots (base text, film sim drawn separately)
         settings_base_text = " · ".join(settings_parts)
 
-        # Film simulation: text and optional image
+        # Film simulation: only keep the text here; the image will be drawn inline with the palette by main.py
         film_sim = str(exif.get('FilmSimulation', ''))
-        film_sim_image = get_film_simulation_image(film_sim) if film_sim else None
 
         # Calculate widths so we can center the whole block
         from PIL import ImageDraw
@@ -178,14 +177,8 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         pipe_width = draw.textlength(pipe_text, font=font_obj) if film_sim else 0
         film_text_width = draw.textlength(film_sim, font=font_obj) if film_sim else 0
 
-        film_image_width = 0
-        film_image_height = 0
-        if film_sim_image:
-            orig_w, orig_h = film_sim_image.size
-            film_image_height = int(font_obj.size * 0.9)
-            film_image_width = max(1, int(orig_w * (film_image_height / orig_h)))
-
-        total_width = settings_base_width + (pipe_width + film_image_width + film_text_width if film_sim else 0)
+        # Center only text widths here; film image will be positioned at the right with the palette
+        total_width = settings_base_width + (pipe_width + film_text_width if film_sim else 0)
 
         # Center the block horizontally
         x = (img.width - total_width) / 2
@@ -194,21 +187,8 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         text_img, (x, y) = tm.draw_text_on_image(img, settings_base_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
 
         if film_sim:
-            # draw pipe separator
+            # draw pipe separator then film simulation text (no image here)
             text_img, (x, _) = tm.draw_text_on_image(text_img, pipe_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
-
-            # draw film sim image (scale to font height) if available
-            if film_sim_image:
-                resized = film_sim_image.resize((film_image_width, film_image_height), resample=Image.LANCZOS)
-                paste_x = int(x)
-                paste_y = int(y - film_image_height + 1)
-                try:
-                    text_img.paste(resized, (paste_x, paste_y), resized)
-                except Exception:
-                    text_img.paste(resized, (paste_x, paste_y))
-                x = paste_x + film_image_width + int(font_obj.size * 0.15)
-
-            # draw film simulation text
             text_img, (x, y) = tm.draw_text_on_image(text_img, film_sim, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
     else:
         # For small and medium: Single line of text at bottom, centered horizontally
@@ -235,9 +215,8 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         # Join settings with dots (base text, film sim drawn separately)
         settings_base_text = " · ".join(settings_parts)
 
-        # Film simulation: text and optional image
+        # Film simulation: only keep the text here; the image will be drawn inline with the palette by main.py
         film_sim = str(exif.get('FilmSimulation', ''))
-        film_sim_image = get_film_simulation_image(film_sim) if film_sim else None
 
         # Calculate total width for centering (using heading font for camera, regular for rest)
         from PIL import ImageDraw
@@ -251,19 +230,10 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         pipe_width = draw.textlength(pipe_text, font=font_obj) if film_sim else 0
         film_text_width = draw.textlength(film_sim, font=font_obj) if film_sim else 0
 
-        # Compute image width (scaled to font height) if we have an image
-        film_image_width = 0
-        film_image_height = 0
-        if film_sim_image:
-            orig_w, orig_h = film_sim_image.size
-            # target image height roughly matches font height
-            film_image_height = int(font_obj.size * 0.9)
-            # preserve aspect ratio
-            film_image_width = max(1, int(orig_w * (film_image_height / orig_h)))
-
+        # No film image width included here; the film image will be pasted on the right with the palette
         total_width = (
             camera_width + separator_width + lens_width + separator_width + settings_base_width
-            + (pipe_width + film_image_width + film_text_width if film_sim else 0)
+            + (pipe_width + film_text_width if film_sim else 0)
         )
         
         # If palette is present, adjust text position to leave room on the right
@@ -300,27 +270,9 @@ def draw_exif(img: Image, exif: dict, border: Border, font: tuple[str, int], bol
         # Draw settings base
         text_img, (x, _) = tm.draw_text_on_image(text_img, settings_base_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
 
-        # If film simulation present, draw pipe, optional image, then film text
+        # If film simulation present, draw pipe then film text (image will be pasted later)
         if film_sim:
-            # draw pipe separator
             text_img, (x, _) = tm.draw_text_on_image(text_img, pipe_text, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
-
-            # draw film sim image (scale to font height) if available
-            if film_sim_image:
-                resized = film_sim_image.resize((film_image_width, film_image_height), resample=Image.LANCZOS)
-                # paste so the bottom of the image aligns near the text baseline
-                paste_x = int(x)
-                paste_y = int(y - film_image_height + 1)
-                # ensure we paste with alpha if present
-                try:
-                    text_img.paste(resized, (paste_x, paste_y), resized)
-                except Exception:
-                    # fallback for images without alpha
-                    text_img.paste(resized, (paste_x, paste_y))
-                # advance x by image width plus small padding
-                x = paste_x + film_image_width + int(font_obj.size * 0.15)
-
-            # draw film simulation text
             text_img, (x, _) = tm.draw_text_on_image(text_img, film_sim, (x, y), centered=False, font=font_obj, fill=(128, 128, 128))
 
     return text_img
