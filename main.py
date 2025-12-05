@@ -141,13 +141,37 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
         color_palette = load_image_color_palette(img, palette_size)
         # Position palette on right side of bottom border
         palette_x = img_with_border.width - border.right - color_palette.width
-        # For twoline layout, align top edge with breathing room from photo edge
-        if twoline:
+        
+        # Vertical positioning: align bottom edge with film sim bottom edge if present
+        if film_img and film_h is not None:
+            # Calculate film sim Y position to determine its bottom edge
+            if twoline or oneline:
+                breathing_room = max(16, int(border.bottom * 0.20))
+                text_baseline_y = img_with_border.height - border.bottom + breathing_room
+                if twoline:
+                    multiplier = 0.20
+                else:  # oneline
+                    multiplier = 0.22
+                estimated_heading_font_size = int(border.bottom * (multiplier + 0.04))
+                max_font_from_border = int(border.bottom * 0.18)
+                estimated_heading_font_size = min(estimated_heading_font_size, max_font_from_border)
+                visual_text_top = text_baseline_y - int(estimated_heading_font_size * 0.75)
+                film_sim_y = visual_text_top
+            else:
+                # Default: center in bottom border
+                film_sim_y = img_with_border.height - round(border.bottom / 2) - round(film_h / 2)
+            
+            # Align palette bottom edge with film sim bottom edge
+            film_sim_bottom = film_sim_y + film_h
+            palette_y = film_sim_bottom - color_palette.height
+        elif twoline or oneline:
+            # For twoline/oneline without film sim, align with text baseline
             breathing_room = max(16, int(border.bottom * 0.20))
             palette_y = img_with_border.height - border.bottom + breathing_room
         else:
             # Default: center in bottom border
             palette_y = img_with_border.height - round(border.bottom / 2) - round(color_palette.height / 2)
+        
         # Shift palette to the left of the film-sim image (if present) or align to photo right edge
         padding = max(4, round(border.bottom * 0.12))
         photo_right = border.left + img.width
