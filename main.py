@@ -56,12 +56,15 @@ def parse_arguments():
                         help='Include Fuji film simulation in EXIF data (requires exiftool)')
     parser.add_argument('--filmsim-scale', type=float, default=0.5,
                         help='Scale factor for film-sim image relative to bottom border height (default: 0.9)')
+    parser.add_argument('--palette-tolerance', type=int, default=32,
+                        help='Color grouping tolerance for palette extraction (default: 32, higher = fewer colors)')
     return parser.parse_args()
 
 
 def process_image(path: str, add_exif: bool, add_palette: bool, border_type: BorderType,
                   font: tuple[str, int], boldfont: tuple[str, int], oneline: bool = False, 
-                  twoline: bool = False, include_film_sim: bool = False, film_sim_scale: float = 0.5) -> str:
+                  twoline: bool = False, include_film_sim: bool = False, film_sim_scale: float = 0.5,
+                  palette_tolerance: int = 32) -> str:
     """ Add a border to an image
     Supported image types ['jpg', 'jpeg', 'png'].
 
@@ -138,7 +141,7 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
 
     if add_palette:
         palette_size = round(border.bottom / 3)
-        color_palette = load_image_color_palette(img, palette_size)
+        color_palette = load_image_color_palette(img, palette_size, tolerance=palette_tolerance)
         # Position palette on right side of bottom border
         palette_x = img_with_border.width - border.right - color_palette.width
         
@@ -269,7 +272,8 @@ def main():
         logger.info(f'Adding border to {path}')
         save_path = process_image(path=path, add_exif=args.exif, add_palette=args.palette, border_type=args.border_type,
                       font=(args.font, args.fontvariant) , boldfont=(args.fontbold, args.fontboldvariant), 
-                      oneline=args.oneline, twoline=args.twoline, include_film_sim=args.s, film_sim_scale=args.filmsim_scale)
+                      oneline=args.oneline, twoline=args.twoline, include_film_sim=args.s, film_sim_scale=args.filmsim_scale,
+                      palette_tolerance=args.palette_tolerance)
         logger.info(f'Saved as {save_path}')
 
 if __name__ == "__main__":

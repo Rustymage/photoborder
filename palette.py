@@ -5,12 +5,74 @@ import math
 import extcolors
 from PIL import Image, ImageDraw
 
-def extract_colors(img):
-    # tolerance = 32
-    tolerance = 32
-    limit = 5
-    colors, pixel_count = extcolors.extract_from_image(img, tolerance, limit)
+def is_near_white(color, threshold=240):
+    """
+    Check if a color is near-white based on RGB values.
+    
+    Args:
+        color: RGB tuple (r, g, b)
+        threshold: RGB threshold value (default 240 - moderate filtering)
+        
+    Returns:
+        bool: True if color is near-white
+    """
+    r, g, b = color[0], color[1], color[2]
+    return r > threshold and g > threshold and b > threshold
 
+
+def filter_near_white_colors(colors, threshold=240, min_colors=5):
+    """
+    Filter out near-white colors from the palette.
+    
+    Args:
+        colors: List of (color, count) tuples from extcolors
+        threshold: RGB threshold for near-white filtering (default 240)
+        min_colors: Minimum number of colors to keep (default 5)
+        
+    Returns:
+        List of filtered colors, ensuring at least min_colors are kept
+    """
+    # First, try to filter near-white colors
+    filtered = [c for c in colors if not is_near_white(c[0], threshold)]
+    
+    # If we have enough colors after filtering, return them
+    if len(filtered) >= min_colors:
+        return filtered[:min_colors]
+    
+    # Otherwise, keep filtered colors and add back some original colors
+    # to reach min_colors, preferring darker colors
+    remaining_needed = min_colors - len(filtered)
+    near_whites = [c for c in colors if is_near_white(c[0], threshold)]
+    
+    # Sort near-whites by average RGB (darker first)
+    near_whites_sorted = sorted(near_whites, key=lambda c: sum(c[0][:3]) / 3)
+    
+    # Add back the darkest near-white colors to reach minimum
+    filtered.extend(near_whites_sorted[:remaining_needed])
+    
+    return filtered[:min_colors]
+
+
+def extract_colors(img, tolerance=32, filter_whites=True):
+    """
+    Extract dominant colors from an image.
+    
+    Args:
+        img: PIL Image object
+        tolerance: Color grouping tolerance (default 32)
+        filter_whites: Whether to filter near-white colors (default True)
+        
+    Returns:
+        List of (color, count) tuples
+    """
+    limit = 12  # Extract more initially to account for filtering
+    colors, pixel_count = extcolors.extract_from_image(img, tolerance, limit)
+    
+    if filter_whites:
+        colors = filter_near_white_colors(colors, threshold=240, min_colors=5)
+    else:
+        colors = colors[:5]  # Limit to 5 if not filtering
+    
     return colors
 
 
@@ -49,8 +111,18 @@ def overlay_palette(img: Image, color_palette: Image, offset):
     return img
 
 
-def load_image_color_palette(img, size):
-    colors = extract_colors(img)
+def load_image_color_palette(img, size, tolerance=32):
+    """
+    Load color palette from an image.
+    
+    Args:
+        img: PIL Image object
+        size: Size of each color square in pixels
+        tolerance: Color grouping tolerance (default 32)
+        
+    Returns:
+        PIL Image containing the color palette
+    """
+    colors = extract_colors(img, tolerance=tolerance, filter_whites=True)
     color_palette = render_color_platte(colors, size)
-    # img = overlay_palette(img, color_palette)
     return color_palette
