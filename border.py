@@ -4,7 +4,7 @@ Image border functions and classes
 import math
 from enum import Enum
 from dataclasses import dataclass
-from PIL import Image
+from PIL import Image, ImageFont, ImageDraw
 import text as tm
 
 class BorderType(Enum):
@@ -123,11 +123,29 @@ def draw_border(img: Image, border: Border) -> Image:
 
     return canvas
 
-def draw_exif(img: Image, exif: dict, border: Border, fontpath: str, boldfontpath: str) -> Image:
+def draw_exif(img: Image, exif: dict, border: Border, fontpath: str, boldfontpath: str, max_width: int = None) -> Image:
     centered = border.border_type in (BorderType.POLAROID, BorderType.LARGE, BorderType.INSTAGRAM)
     multiplier = 0.2 if centered else 0.5
     font_size = tm.get_optimal_font_size("Test string", border.bottom * multiplier, fontpath)
     heading_font_size = tm.get_optimal_font_size("Test string", border.bottom * (multiplier + 0.02), boldfontpath)
+
+    if max_width and not centered:
+        exif_lines = [
+            f"{exif['Make']} {exif['Model']}",
+            f"{exif['LensMake']} {exif['LensModel']}",
+            f"{exif['FocalLength']}  {exif['FNumber']}  {exif['ISOSpeedRatings']}  {exif['ExposureTime']}",
+        ]
+        dummy = ImageDraw.Draw(img)
+        while font_size > 1:
+            test_heading = ImageFont.truetype(boldfontpath, heading_font_size)
+            test_font = ImageFont.truetype(fontpath, font_size)
+            widths = [dummy.textlength(exif_lines[0], font=test_heading)] + \
+                     [dummy.textlength(line, font=test_font) for line in exif_lines[1:]]
+            if max(widths) <= max_width:
+                break
+            font_size -= 1
+            heading_font_size = max(1, heading_font_size - 1)
+
     font = tm.create_font(font_size, fontpath)
     heading_font = tm.create_font(heading_font_size, boldfontpath)
 
