@@ -75,6 +75,16 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
     img_with_border = draw_border(img, border)
     save_as = f'{filename}_border-{border.border_type}'
 
+    exif_max_width = None
+
+    if add_palette:
+        palette_size = round(border.bottom / 3)
+        color_palette = load_image_color_palette(img, palette_size)
+        # Position palette on right side of bottom border
+        palette_x = img_with_border.width - border.right - color_palette.width
+        palette_y = img_with_border.height - round(border.bottom / 2) - round(color_palette.height / 2)
+        exif_max_width = palette_x - border.left
+
     if add_exif:
         exif = get_exif(img)
         if exif:
@@ -89,15 +99,10 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
             if len(error_messages) > 0:
                 raise ValueError(error_messages)
 
-            img_with_border = draw_exif(img_with_border, exif, border, font_path, bold_font_path)
+            img_with_border = draw_exif(img_with_border, exif, border, font_path, bold_font_path, max_width=exif_max_width)
             save_as = f'{save_as}_exif'
 
     if add_palette:
-        palette_size = round(border.bottom / 3)
-        color_palette = load_image_color_palette(img, palette_size)
-        # Position palette on right side of bottom border
-        palette_x = img_with_border.width - border.right - color_palette.width
-        palette_y = img_with_border.height - round(border.bottom / 2) - round(color_palette.height / 2)
         img_with_border = overlay_palette(img=img_with_border,
                                           color_palette=color_palette,
                                           offset=(palette_x, palette_y))
