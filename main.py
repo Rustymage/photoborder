@@ -75,7 +75,7 @@ def process_image(path: str, add_exif: bool, add_palette: bool, border_type: Bor
     img_with_border = draw_border(img, border)
     save_as = f'{filename}_border-{border.border_type}'
 
-    exif_max_width = None
+    exif_max_width = img_with_border.width - border.left - border.right
 
     if add_palette:
         palette_size = round(border.bottom / 3)
