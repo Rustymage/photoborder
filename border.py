@@ -141,7 +141,8 @@ def draw_exif(img: Image, exif: dict, border: Border, fontpath: str, boldfontpat
             test_font = ImageFont.truetype(fontpath, font_size)
             widths = [dummy.textlength(exif_lines[0], font=test_heading)] + \
                      [dummy.textlength(line, font=test_font) for line in exif_lines[1:]]
-            if max(widths) <= max_width:
+            total_width = widths[0] + (heading_font_size / 2) + widths[1] + (font_size / 2) + widths[2]
+            if total_width <= max_width:
                 break
             font_size -= 1
             heading_font_size = max(1, heading_font_size - 1)
